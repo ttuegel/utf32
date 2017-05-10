@@ -1,0 +1,11 @@
+name: utf32
+
+library:
+  exposed-modules:
+    - UTF32
+  dependencies:
+    - base
+    - mtl
+    - parsec
+    - transformers
+    - vector
