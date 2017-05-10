@@ -1,4 +1,17 @@
 name: utf32
+version: 0.1.0
+github: ttuegel/utf32
+synopsis: UTF-32-encoded packed string type
+description: |
+  @UTF32@ is a packed string type in the UTF-32 encoding;
+  it is effectively a packed version of @String@. Although it is not as
+  space-efficient as UTF-16 (see the @text@ package) or UTF-8 encoding
+  (see the @utf8-string@ package), some operations are more time-efficient
+  because each encoded character has the same physical width. The primary
+  reason to use @UTF32@ is that GHC uses reserved code points in @Char@
+  to preserve characters which could not be correctly decoded, ensuring
+  that strings (such as file paths) can always be re-encoded for the
+  operating system.
 
 library:
   exposed-modules:
