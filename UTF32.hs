@@ -75,17 +75,17 @@ module UTF32
   ) where
 
 import Control.Applicative hiding (Alternative(..))
-import Control.Monad
-import Data.Bool
-import Data.Char
-import Data.Eq
-import Data.Function
-import Data.Int
-import Data.Maybe
-import Data.Ord
-import Data.Semigroup
-import Data.String
+import Control.Monad (Monad(..))
+import Data.Bool (Bool(..), otherwise)
+import Data.Char (Char, isSpace)
+import Data.Eq (Eq(..))
+import Data.Function ((.), ($))
 import qualified Data.Foldable as Foldable
+import Data.Int (Int)
+import Data.Maybe (Maybe(..))
+import Data.Ord ((>))
+import Data.Semigroup (Monoid(..), Semigroup(..))
+import Data.String (IsString(..), String)
 import Data.Vector.Storable (Vector)
 import qualified Data.Vector.Storable as Vector
 import Foreign.Marshal.Array (allocaArray0, copyArray)
@@ -93,7 +93,7 @@ import Foreign.Ptr (Ptr)
 import Foreign.Storable (pokeElemOff)
 import GHC.Exts (IsList(..))
 import Prelude (Num(..))
-import System.IO
+import System.IO (IO)
 import Text.Parsec (Stream)
 import qualified Text.Parsec as Parsec
 
