@@ -46,6 +46,8 @@ module UTF32
   -- ** Generation and unfolding
   , unfoldr
   , unfoldrN
+  , unlines
+  , unwords
   -- * Substrings
   -- ** Breaking strings
   , take
@@ -57,6 +59,8 @@ module UTF32
   , break
   , stripPrefix
   , stripSuffix
+  , lines
+  , words
   -- * Searching
   , filter
   , find
@@ -81,6 +85,7 @@ import Data.Maybe
 import Data.Ord
 import Data.Semigroup
 import Data.String
+import qualified Data.Foldable as Foldable
 import Data.Vector.Storable (Vector)
 import qualified Data.Vector.Storable as Vector
 import Foreign.Marshal.Array (allocaArray0, copyArray)
@@ -231,6 +236,14 @@ unfoldr f z = UTF32 (Vector.unfoldr f z)
 unfoldrN :: Int -> (a -> Maybe (Char, a)) -> a -> UTF32
 unfoldrN n f z = UTF32 (Vector.unfoldrN n f z)
 
+unlines :: [UTF32] -> UTF32
+unlines [] = empty
+unlines ls = Foldable.foldr1 (\ln rest -> ln <> cons '\n' rest) ls
+
+unwords :: [UTF32] -> UTF32
+unwords [] = empty
+unwords ws = Foldable.foldr1 (\wd rest -> wd <> cons ' ' rest) ws
+
 -- * Substrings
 
 -- ** Breaking strings
@@ -282,6 +295,23 @@ stripSuffix (UTF32 tgt) (UTF32 str)
   where
     len_tgt = Vector.length tgt
     len_str = Vector.length str
+
+lines :: UTF32 -> [UTF32]
+lines str
+  | null str = []
+  | otherwise =
+      case break (== '\n') str of
+        (l, r)
+          | null r -> [l]
+          | otherwise -> l : lines (tail r)
+
+words :: UTF32 -> [UTF32]
+words str =
+  case break isSpace (dropWhile isSpace str) of
+    (l, r)
+      | null l -> []
+      | null r -> [l]
+      | otherwise -> l : words (tail r)
 
 -- * Searching
 
