@@ -29,8 +29,11 @@ tests:
     main: tests.hs
     other-modules:
       - Test.UTF32
+    c-sources:
+      - tests/Test/UTF32.c
     dependencies:
       - base
       - hedgehog >= 0.5
+      - inline-c
       - text
       - utf32

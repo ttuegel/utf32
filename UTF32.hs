@@ -1,6 +1,8 @@
 {-# LANGUAGE FlexibleInstances #-}
+{-# LANGUAGE LambdaCase #-}
 {-# LANGUAGE MultiParamTypeClasses #-}
 {-# LANGUAGE NoImplicitPrelude #-}
+{-# LANGUAGE RecordWildCards #-}
 {-# LANGUAGE TypeFamilies #-}
 
 module UTF32
@@ -71,12 +73,15 @@ module UTF32
   -- * Zipping
   , zipWith
   -- * Foreign
-  , withUTF32
+  , withCString
+  , withCStringLen
+  , withEncodedCString
   ) where
 
 import Control.Applicative hiding (Alternative(..))
-import Control.Monad (Monad(..))
-import Data.Bool (Bool(..), otherwise)
+import Control.Exception (bracket)
+import Control.Monad (Monad(..), fmap, when)
+import Data.Bool (Bool(..), (&&), otherwise)
 import Data.Char (Char, isSpace)
 import Data.Eq (Eq(..))
 import Data.Function ((.), ($), flip)
@@ -88,11 +93,21 @@ import Data.Semigroup (Monoid(..), Semigroup(..))
 import Data.String (IsString(..), String)
 import Data.Vector.Storable (Vector)
 import qualified Data.Vector.Storable as Vector
+import Data.Word (Word8)
+import Foreign.C.String (CString, CStringLen)
+import Foreign.C.Types (CChar)
+import Foreign.ForeignPtr (newForeignPtr_)
+import Foreign.Marshal.Alloc (allocaBytes)
 import Foreign.Marshal.Array (allocaArray0, copyArray)
-import Foreign.Ptr (Ptr)
-import Foreign.Storable (pokeElemOff)
+import Foreign.Ptr (Ptr, castPtr)
+import Foreign.Storable (pokeElemOff, sizeOf)
 import GHC.Exts (IsList(..))
-import Prelude (Num(..))
+import GHC.IO.Buffer
+       (Buffer, BufferState(..), bufferAdd, bufferAvailable, bufferElems, bufR, emptyBuffer, isEmptyBuffer, withBuffer)
+import GHC.IO.Encoding (getForeignEncoding)
+import GHC.IO.Encoding.Types
+       (BufferCodec(..), CodingProgress(..), TextEncoding(..), TextEncoder(..))
+import Prelude (Num(..), undefined)
 import System.IO (IO)
 import Text.Parsec (Stream)
 import qualified Text.Parsec as Parsec
@@ -341,12 +356,60 @@ zipWith f (UTF32 stra) (UTF32 strb) = UTF32 (Vector.zipWith f stra strb)
 
 -- * Foreign
 
--- | Run an action with a pointer to (a NUL-terminated copy of) the given 'UTF32' string.
--- It is safe to modify the data through this pointer, but the storage will be freed as soon as the action is completed.
-withUTF32 :: UTF32 -> (Ptr Char -> IO a) -> IO a
-withUTF32 (UTF32 str) go =
-  let len = Vector.length str in
-  allocaArray0 len $ \dst -> do
-    Vector.unsafeWith str $ \src -> copyArray dst src len
-    pokeElemOff dst len '\NUL'
-    go dst
+withCString :: UTF32 -> (CString -> IO a) -> IO a
+withCString str worker = do
+  enc <- getForeignEncoding
+  withEncodedCString enc True str $ \(p, _) -> worker p
+
+withCStringLen :: UTF32 -> (CStringLen -> IO a) -> IO a
+withCStringLen str worker = do
+  enc <- getForeignEncoding
+  withEncodedCString enc False str worker
+
+withEncodedCString
+  :: TextEncoding  -- ^ Encoding of CString to create
+  -> Bool  -- ^ Null terminate?
+  -> UTF32  -- ^ String to encode
+  -> (CStringLen -> IO a)  -- ^ Worker that can safely use the allocated memory
+  -> IO a
+withEncodedCString (TextEncoding {..}) nullTerminate str worker =
+  bracket mkTextEncoder close $ \encoder -> do
+    let
+      (fp, sz) = Vector.unsafeToForeignPtr0 (unUTF32 str)
+      from = bufferAdd sz (emptyBuffer fp sz ReadBuffer)
+
+      go toSzInBytes =
+        allocaBytes toSzInBytes $ \pto ->
+        tryFillBufferAndCall encoder nullTerminate from pto toSzInBytes worker
+          >>= \case
+            Nothing  -> go (toSzInBytes * 2)
+            Just res -> return res
+
+    -- If the input string is ASCII, we will only allocate once
+    go (cCharSize * (sz + 1))
+
+tryFillBufferAndCall
+  :: TextEncoder dstate -> Bool -> Buffer Char -> Ptr Word8 -> Int
+  -> (CStringLen -> IO a) -> IO (Maybe a)
+tryFillBufferAndCall encoder null_terminate from0 to_p to_sz_bytes act = do
+    to_fp <- newForeignPtr_ to_p
+    go (0 :: Int) (from0, emptyBuffer to_fp to_sz_bytes WriteBuffer)
+  where
+    go iteration (from, to) = do
+      (why, from', to') <- encode encoder from to
+      if isEmptyBuffer from'
+       then if null_terminate && bufferAvailable to' == 0
+             then return Nothing -- We had enough for the string but not the terminator: ask the caller for more buffer
+             else do
+               -- Awesome, we had enough buffer
+               let bytes = bufferElems to'
+               withBuffer to' $ \to_ptr -> do
+                   when null_terminate $ pokeElemOff to_ptr (bufR to') 0
+                   fmap Just $ act (castPtr to_ptr, bytes) -- NB: the length information is specified as being in *bytes*
+       else case why of -- We didn't consume all of the input
+              InputUnderflow  -> recover encoder from' to' >>= go (iteration + 1) -- These conditions are equally bad
+              InvalidSequence -> recover encoder from' to' >>= go (iteration + 1) -- since the input was truncated/invalid
+              OutputUnderflow -> return Nothing -- Oops, out of buffer during decoding: ask the caller for more
+
+cCharSize :: Int
+cCharSize = sizeOf (undefined :: CChar)

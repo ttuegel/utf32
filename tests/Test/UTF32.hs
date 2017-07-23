@@ -1,17 +1,23 @@
+{-# LANGUAGE QuasiQuotes #-}
 {-# LANGUAGE TemplateHaskell #-}
 
 module Test.UTF32 where
 
+import Control.Monad.IO.Class (liftIO)
 import Data.String (IsString(..))
 import Data.Text (Text)
 import qualified Data.Text as Text
+import Foreign.C.String (withCString, withCStringLen)
 import GHC.Exts (IsList(..))
+import qualified Language.C.Inline as C
 import UTF32 (UTF32)
 import qualified UTF32
 
 import Hedgehog
 import qualified Hedgehog.Gen as Gen
 import qualified Hedgehog.Range as Range
+
+C.include "<string.h>"
 
 fromText :: Text -> UTF32
 fromText txt = fromListN (Text.length txt) (Text.unpack txt)
@@ -187,6 +193,31 @@ prop_stripSuffix = property $ do
       txt = Text.stripSuffix t (Text.concat (reverse txts))
   assert $ (toText <$> utf) == txt
   assert $ utf == (fromText <$> txt)
+
+prop_withCString :: Property
+prop_withCString = property $ do
+  str <- forAll genLongString
+  cmp <-
+    liftIO $ withCString str
+    $ \pstr -> UTF32.withCString (fromString str)
+    $ \putf ->
+        [C.exp|
+          int { strcmp( $(char* pstr), $(char* putf) ) }
+        |]
+  assert $ cmp == 0
+
+prop_withCStringLen :: Property
+prop_withCStringLen = property $ do
+  str <- forAll genLongString
+  cmp <-
+    liftIO $ withCStringLen str
+    $ \(pstr, slen) -> UTF32.withCStringLen (fromString str)
+    $ \(putf, ulen) -> do
+        let len = toEnum (min slen ulen)
+        [C.exp|
+          int { strncmp( $(char* pstr), $(char* putf), $(int len) ) }
+          |]
+  assert $ cmp == 0
 
 tests :: IO Bool
 tests = checkSequential $$(discover)

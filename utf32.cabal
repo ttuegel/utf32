@@ -41,9 +41,12 @@ test-suite tests
   main-is: tests.hs
   hs-source-dirs:
       tests/
+  c-sources:
+      tests/Test/UTF32.c
   build-depends:
       base
     , hedgehog >= 0.5
+    , inline-c
     , text
     , utf32
   other-modules:
