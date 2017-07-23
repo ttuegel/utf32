@@ -22,3 +22,15 @@ library:
     - parsec
     - transformers
     - vector
+
+tests:
+  tests:
+    source-dirs: tests/
+    main: tests.hs
+    other-modules:
+      - Test.UTF32
+    dependencies:
+      - base
+      - hedgehog >= 0.5
+      - text
+      - utf32

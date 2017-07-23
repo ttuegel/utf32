@@ -1,11 +1,27 @@
--- This file has been generated from package.yaml by hpack version 0.17.0.
+-- This file has been generated from package.yaml by hpack version 0.18.1.
 --
 -- see: https://github.com/sol/hpack
 
 name:           utf32
-version:        0.0.0
+version:        0.1.0
+synopsis:       UTF-32-encoded packed string type
+description:    @UTF32@ is a packed string type in the UTF-32 encoding;
+                it is effectively a packed version of @String@. Although it is not as
+                space-efficient as UTF-16 (see the @text@ package) or UTF-8 encoding
+                (see the @utf8-string@ package), some operations are more time-efficient
+                because each encoded character has the same physical width. The primary
+                reason to use @UTF32@ is that GHC uses reserved code points in @Char@
+                to preserve characters which could not be correctly decoded, ensuring
+                that strings (such as file paths) can always be re-encoded for the
+                operating system.
+homepage:       https://github.com/ttuegel/utf32#readme
+bug-reports:    https://github.com/ttuegel/utf32/issues
 build-type:     Simple
 cabal-version:  >= 1.10
+
+source-repository head
+  type: git
+  location: https://github.com/ttuegel/utf32
 
 library
   build-depends:
@@ -18,4 +34,18 @@ library
       UTF32
   other-modules:
       Paths_utf32
+  default-language: Haskell2010
+
+test-suite tests
+  type: exitcode-stdio-1.0
+  main-is: tests.hs
+  hs-source-dirs:
+      tests/
+  build-depends:
+      base
+    , hedgehog >= 0.5
+    , text
+    , utf32
+  other-modules:
+      Test.UTF32
   default-language: Haskell2010

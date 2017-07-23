@@ -1,25 +1,20 @@
-{ nixpkgs ? import <nixpkgs> {}, compiler ? "default" }:
+{ nixpkgs ? import ./nixpkgs {}, compiler ? "default" }:
 
 let
 
   inherit (nixpkgs) pkgs;
 
-  f = { mkDerivation, base, mtl, parsec, stdenv, transformers
-      , vector
-      }:
-      mkDerivation {
-        pname = "utf32";
-        version = "0.0.0";
-        src = ./.;
-        libraryHaskellDepends = [ base mtl parsec transformers vector ];
-        license = stdenv.lib.licenses.unfree;
-      };
+  overrides =
+    if builtins.pathExists ./overrides.nix
+    then import ./overrides.nix pkgs pkgs.haskell.lib
+    else self: super: {};
 
-  haskellPackages = if compiler == "default"
-                       then pkgs.haskellPackages
-                       else pkgs.haskell.packages.${compiler};
+  haskellPackages =
+    if compiler == "default"
+    then pkgs.haskellPackages.override { inherit overrides; }
+    else pkgs.haskell.packages.${compiler}.override { inherit overrides; };
 
-  drv = haskellPackages.callPackage f {};
+  drv = haskellPackages.callPackage ./. {};
 
 in
 
