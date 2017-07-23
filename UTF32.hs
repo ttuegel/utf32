@@ -79,7 +79,7 @@ import Control.Monad (Monad(..))
 import Data.Bool (Bool(..), otherwise)
 import Data.Char (Char, isSpace)
 import Data.Eq (Eq(..))
-import Data.Function ((.), ($))
+import Data.Function ((.), ($), flip)
 import qualified Data.Foldable as Foldable
 import Data.Int (Int)
 import Data.Maybe (Maybe(..))
@@ -238,7 +238,7 @@ unfoldrN n f z = UTF32 (Vector.unfoldrN n f z)
 
 unlines :: [UTF32] -> UTF32
 unlines [] = empty
-unlines ls = Foldable.foldr1 (\ln rest -> ln <> cons '\n' rest) ls
+unlines ls = concat (flip snoc '\n' <$> ls)
 
 unwords :: [UTF32] -> UTF32
 unwords [] = empty
