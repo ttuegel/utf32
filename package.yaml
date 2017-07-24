@@ -13,6 +13,8 @@ description: |
   that strings (such as file paths) can always be re-encoded for the
   operating system.
 
+ghc-options: -Wall
+
 library:
   exposed-modules:
     - UTF32

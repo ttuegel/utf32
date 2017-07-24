@@ -93,10 +93,11 @@ import Data.Semigroup (Monoid(..), Semigroup(..))
 import Data.String (IsString(..), String)
 import Data.Vector.Storable (Vector)
 import qualified Data.Vector.Storable as Vector
+import qualified Data.Vector.Storable.Mutable as MVector
 import Data.Word (Word8)
 import Foreign.C.String (CString, CStringLen)
 import Foreign.C.Types (CChar)
-import Foreign.ForeignPtr (newForeignPtr_)
+import Foreign.ForeignPtr (castForeignPtr, newForeignPtr_)
 import Foreign.Marshal.Alloc (allocaBytes)
 import Foreign.Marshal.Array (allocaArray0, copyArray)
 import Foreign.Ptr (Ptr, castPtr)
@@ -377,39 +378,39 @@ withEncodedCString (TextEncoding {..}) nullTerminate str worker =
     let
       (fp, sz) = Vector.unsafeToForeignPtr0 (unUTF32 str)
       from = bufferAdd sz (emptyBuffer fp sz ReadBuffer)
+    fillBufferAndCall encoder nullTerminate from worker
 
-      go toSzInBytes =
-        allocaBytes toSzInBytes $ \pto ->
-        tryFillBufferAndCall encoder nullTerminate from pto toSzInBytes worker
-          >>= \case
-            Nothing  -> go (toSzInBytes * 2)
-            Just res -> return res
-
-    -- If the input string is ASCII, we will only allocate once
-    go (cCharSize * (sz + 1))
-
-tryFillBufferAndCall
-  :: TextEncoder dstate -> Bool -> Buffer Char -> Ptr Word8 -> Int
-  -> (CStringLen -> IO a) -> IO (Maybe a)
-tryFillBufferAndCall encoder null_terminate from0 to_p to_sz_bytes act = do
-    to_fp <- newForeignPtr_ to_p
-    go (0 :: Int) (from0, emptyBuffer to_fp to_sz_bytes WriteBuffer)
+fillBufferAndCall
+  :: TextEncoder dstate
+  -> Bool
+  -> Buffer Char
+  -> (CStringLen -> IO a)
+  -> IO a
+fillBufferAndCall encoder nullTerminate from worker = do
+  let len = bufferElems from
+  dst <- MVector.new len
+  go (from, dst) (from, toBuffer dst)
   where
-    go iteration (from, to) = do
-      (why, from', to') <- encode encoder from to
-      if isEmptyBuffer from'
-       then if null_terminate && bufferAvailable to' == 0
-             then return Nothing -- We had enough for the string but not the terminator: ask the caller for more buffer
-             else do
-               -- Awesome, we had enough buffer
-               let bytes = bufferElems to'
-               withBuffer to' $ \to_ptr -> do
-                   when null_terminate $ pokeElemOff to_ptr (bufR to') 0
-                   fmap Just $ act (castPtr to_ptr, bytes) -- NB: the length information is specified as being in *bytes*
-       else case why of -- We didn't consume all of the input
-              InputUnderflow  -> recover encoder from' to' >>= go (iteration + 1) -- These conditions are equally bad
-              InvalidSequence -> recover encoder from' to' >>= go (iteration + 1) -- since the input was truncated/invalid
-              OutputUnderflow -> return Nothing -- Oops, out of buffer during decoding: ask the caller for more
+    toBuffer v =
+      let (p, len) = MVector.unsafeToForeignPtr0 v in
+        emptyBuffer (castForeignPtr p) len WriteBuffer
 
-cCharSize :: Int
-cCharSize = sizeOf (undefined :: CChar)
+    go (src, dst) (_from, _to) = do
+      (why, _from, _to) <- encode encoder _from _to
+      if isEmptyBuffer _from
+        then do
+          dst' <- if nullTerminate && bufferAvailable _to == 0
+                  then MVector.grow dst 1
+                  else pure dst
+          when nullTerminate $ MVector.write dst' (bufR _to) 0
+          MVector.unsafeWith dst' $ \p ->
+            worker (p, bufferElems _to)
+        else
+          case why of
+            -- These conditions are equally bad
+            -- since the input was truncated/invalid
+            InputUnderflow  -> recover encoder _from _to >>= go (src, dst)
+            InvalidSequence -> recover encoder _from _to >>= go (src, dst)
+            OutputUnderflow -> do
+              dst' <- MVector.grow dst (MVector.length dst)
+              go (src, dst') (src, toBuffer dst')
