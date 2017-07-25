@@ -27,6 +27,7 @@ library
   ghc-options: -Wall
   build-depends:
       base
+    , cpu
     , mtl
     , parsec
     , transformers

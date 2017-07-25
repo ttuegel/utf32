@@ -3,6 +3,8 @@
 {-# LANGUAGE MultiParamTypeClasses #-}
 {-# LANGUAGE NoImplicitPrelude #-}
 {-# LANGUAGE RecordWildCards #-}
+{-# LANGUAGE ScopedTypeVariables #-}
+{-# LANGUAGE TemplateHaskell #-}
 {-# LANGUAGE TypeFamilies #-}
 
 module UTF32
@@ -76,6 +78,9 @@ module UTF32
   , withCString
   , withCStringLen
   , withEncodedCString
+  , withCWString
+  , withCWStringLen
+  , withEncodedCWString
   ) where
 
 import Control.Applicative hiding (Alternative(..))
@@ -94,17 +99,22 @@ import Data.String (IsString(..), String)
 import Data.Vector.Storable (Vector)
 import qualified Data.Vector.Storable as Vector
 import qualified Data.Vector.Storable.Mutable as MVector
-import Foreign.C.String (CString, CStringLen)
+import Foreign.C.String (CString, CStringLen, CWString, CWStringLen)
+import Foreign.C.Types (CWchar)
 import Foreign.ForeignPtr (castForeignPtr)
+import Foreign.Ptr (Ptr)
+import Foreign.Storable (Storable(..))
 import GHC.Exts (IsList(..))
 import GHC.IO.Buffer
        ( Buffer, BufferState(..), bufferAdd, bufferAvailable, bufferElems
-       , bufR, emptyBuffer, isEmptyBuffer )
-import GHC.IO.Encoding (getForeignEncoding)
+       , emptyBuffer, isEmptyBuffer )
+import GHC.IO.Encoding
+       ( getForeignEncoding, utf16le, utf16be, utf32le, utf32be )
 import GHC.IO.Encoding.Types
        ( BufferCodec(..), CodingProgress(..), TextEncoding(..)
        , TextEncoder )
-import Prelude (Num(..))
+import Prelude (Num(..), error, quotRem, undefined)
+import System.Endian (Endianness(..), getSystemEndianness)
 import System.IO (IO)
 import Text.Parsec (Stream)
 import qualified Text.Parsec as Parsec
@@ -376,11 +386,48 @@ withEncodedCString (TextEncoding {..}) nullTerminate str worker =
       from = bufferAdd sz (emptyBuffer fp sz ReadBuffer)
     fillBufferAndCall encoder nullTerminate from worker
 
+cwcharEncoding :: TextEncoding
+cwcharEncoding =
+  $(case sizeOf (undefined :: CWchar) of
+       2 ->
+         case getSystemEndianness of
+           LittleEndian -> [| utf16le |]
+           BigEndian -> [| utf16be |]
+       4 ->
+         case getSystemEndianness of
+           LittleEndian -> [| utf32le |]
+           BigEndian -> [| utf32be |]
+       _ -> error "withCWString: CWchar must be 16 or 32 bits wide"
+   )
+
+withCWString :: UTF32 -> (CWString -> IO a) -> IO a
+withCWString str worker =
+  withEncodedCWString cwcharEncoding True str $ \(p, _) -> worker p
+
+withCWStringLen :: UTF32 -> (CWStringLen -> IO a) -> IO a
+withCWStringLen str worker =
+  withEncodedCWString cwcharEncoding False str worker
+
+withEncodedCWString
+  :: TextEncoding  -- ^ Encoding of CString to create
+  -> Bool  -- ^ Null terminate?
+  -> UTF32  -- ^ String to encode
+  -> (CWStringLen -> IO a)  -- ^ Worker that can safely use the allocated memory
+  -> IO a
+withEncodedCWString (TextEncoding {..}) nullTerminate str worker =
+  bracket mkTextEncoder close $ \encoder -> do
+    let
+      (fp, sz) = Vector.unsafeToForeignPtr0 (unUTF32 str)
+      from = bufferAdd sz (emptyBuffer fp sz ReadBuffer)
+    fillBufferAndCall encoder nullTerminate from worker
+
 fillBufferAndCall
-  :: TextEncoder dstate
+  :: forall a c dstate.
+     (Num c, Storable c) =>
+     TextEncoder dstate
   -> Bool
   -> Buffer Char
-  -> (CStringLen -> IO a)
+  -> ((Ptr c, Int) -> IO a)
   -> IO a
 fillBufferAndCall encoder nullTerminate from worker = do
   let len = bufferElems from
@@ -398,9 +445,14 @@ fillBufferAndCall encoder nullTerminate from worker = do
           dst' <- if nullTerminate && bufferAvailable _to == 0
                   then MVector.grow dst 1
                   else pure dst
-          when nullTerminate $ MVector.write dst' (bufR _to) 0
+          let
+            bytes = bufferElems _to
+            elems =
+              let (q, r) = quotRem bytes (sizeOf (undefined :: c)) in
+                if r /= 0 then q + 1 else q
+          when nullTerminate $ MVector.write dst' elems 0
           MVector.unsafeWith dst' $ \p ->
-            worker (p, bufferElems _to)
+            worker (p, elems)
         else
           case why of
             -- These conditions are equally bad

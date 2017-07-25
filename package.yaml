@@ -20,6 +20,7 @@ library:
     - UTF32
   dependencies:
     - base
+    - cpu
     - mtl
     - parsec
     - transformers

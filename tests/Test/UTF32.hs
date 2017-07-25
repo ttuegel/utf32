@@ -7,7 +7,8 @@ import Control.Monad.IO.Class (liftIO)
 import Data.String (IsString(..))
 import Data.Text (Text)
 import qualified Data.Text as Text
-import Foreign.C.String (withCString, withCStringLen)
+import Foreign.C.String
+       ( withCString, withCStringLen, withCWString, withCWStringLen )
 import GHC.Exts (IsList(..))
 import qualified Language.C.Inline as C
 import UTF32 (UTF32)
@@ -18,6 +19,7 @@ import qualified Hedgehog.Gen as Gen
 import qualified Hedgehog.Range as Range
 
 C.include "<string.h>"
+C.include "<wchar.h>"
 
 fromText :: Text -> UTF32
 fromText txt = fromListN (Text.length txt) (Text.unpack txt)
@@ -216,6 +218,31 @@ prop_withCStringLen = property $ do
         let len = toEnum (min slen ulen)
         [C.exp|
           int { strncmp( $(char* pstr), $(char* putf), $(int len) ) }
+          |]
+  assert $ cmp == 0
+
+prop_withCWString :: Property
+prop_withCWString = property $ do
+  str <- forAll genLongString
+  cmp <-
+    liftIO $ withCWString str
+    $ \pstr -> UTF32.withCWString (fromString str)
+    $ \putf ->
+        [C.exp|
+          int { wcscmp( $(wchar_t* pstr), $(wchar_t* putf) ) }
+        |]
+  assert $ cmp == 0
+
+prop_withCWStringLen :: Property
+prop_withCWStringLen = property $ do
+  str <- forAll genLongString
+  cmp <-
+    liftIO $ withCWStringLen str
+    $ \(pstr, slen) -> UTF32.withCWStringLen (fromString str)
+    $ \(putf, ulen) -> do
+        let len = toEnum (min slen ulen)
+        [C.exp|
+          int { wcsncmp( $(wchar_t* pstr), $(wchar_t* putf), $(int len) ) }
           |]
   assert $ cmp == 0
 
