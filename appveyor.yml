@@ -1,0 +1,22 @@
+install:
+  # Using '-y' and 'refreshenv' as a workaround to:
+  # https://github.com/haskell/cabal/issues/3687
+  - choco install -y ghc --version 8.0.1
+  - refreshenv
+
+  # TODO: remove --insecure, this is to workaround haskell.org
+  # failing to send intermediate cert; see https://github.com/haskell/cabal/pull/4172
+  - curl -o cabal.zip --insecure --progress-bar https://www.haskell.org/cabal/release/cabal-install-1.24.0.2/cabal-install-1.24.0.2-x86_64-unknown-mingw32.zip
+  - 7z x -bd cabal.zip
+  - cabal --version
+  - cabal update
+
+  # 'echo "" |' works around an AppVeyor issue:
+  # https://github.com/commercialhaskell/stack/issues/1097#issuecomment-145747849
+  - echo "" | cabal install alex happy
+  - echo "" | cabal install --only-dependencies --enable-tests
+
+build_script:
+  - cabal configure --ghc-option=-Werror --enable-tests
+  - cabal build
+  - cabal test
