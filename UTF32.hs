@@ -80,7 +80,7 @@ module UTF32
 
 import Control.Applicative hiding (Alternative(..))
 import Control.Exception (bracket)
-import Control.Monad (Monad(..), fmap, when)
+import Control.Monad (Monad(..), when)
 import Data.Bool (Bool(..), (&&), otherwise)
 import Data.Char (Char, isSpace)
 import Data.Eq (Eq(..))
@@ -94,21 +94,17 @@ import Data.String (IsString(..), String)
 import Data.Vector.Storable (Vector)
 import qualified Data.Vector.Storable as Vector
 import qualified Data.Vector.Storable.Mutable as MVector
-import Data.Word (Word8)
 import Foreign.C.String (CString, CStringLen)
-import Foreign.C.Types (CChar)
-import Foreign.ForeignPtr (castForeignPtr, newForeignPtr_)
-import Foreign.Marshal.Alloc (allocaBytes)
-import Foreign.Marshal.Array (allocaArray0, copyArray)
-import Foreign.Ptr (Ptr, castPtr)
-import Foreign.Storable (pokeElemOff, sizeOf)
+import Foreign.ForeignPtr (castForeignPtr)
 import GHC.Exts (IsList(..))
 import GHC.IO.Buffer
-       (Buffer, BufferState(..), bufferAdd, bufferAvailable, bufferElems, bufR, emptyBuffer, isEmptyBuffer, withBuffer)
+       ( Buffer, BufferState(..), bufferAdd, bufferAvailable, bufferElems
+       , bufR, emptyBuffer, isEmptyBuffer )
 import GHC.IO.Encoding (getForeignEncoding)
 import GHC.IO.Encoding.Types
-       (BufferCodec(..), CodingProgress(..), TextEncoding(..), TextEncoder(..))
-import Prelude (Num(..), undefined)
+       ( BufferCodec(..), CodingProgress(..), TextEncoding(..)
+       , TextEncoder )
+import Prelude (Num(..))
 import System.IO (IO)
 import Text.Parsec (Stream)
 import qualified Text.Parsec as Parsec
