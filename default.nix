@@ -8,7 +8,7 @@ mkDerivation {
   libraryHaskellDepends = [
     base cpu mtl parsec semigroups transformers vector
   ];
-  testHaskellDepends = [ base hedgehog inline-c text ];
+  testHaskellDepends = [ base hedgehog inline-c text transformers ];
   homepage = "https://github.com/ttuegel/utf32#readme";
   description = "UTF-32-encoded packed string type";
   license = stdenv.lib.licenses.unfree;

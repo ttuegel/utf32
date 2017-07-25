@@ -40,4 +40,5 @@ tests:
       - hedgehog >= 0.5
       - inline-c
       - text
+      - transformers
       - utf32
