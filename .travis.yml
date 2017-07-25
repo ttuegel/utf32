@@ -1,0 +1,46 @@
+language: generic
+sudo: false
+
+cache:
+  directories:
+    - $HOME/.ghc
+    - $HOME/.cabal
+
+matrix:
+  fast_finish: true
+  include:
+    - env: CABALVER=2.0 GHCVER=7.10.3
+      addons:
+        apt:
+          sources:
+            - hvr-ghc
+          packages:
+            - cabal-install-2.0
+            - ghc-7.10.3
+    - env: CABALVER=2.0 GHCVER=8.0.2
+      addons:
+        apt:
+          sources:
+            - hvr-ghc
+          packages:
+            - cabal-install-2.0
+            - ghc-8.0.2
+    - env: CABALVER=2.0 GHCVER=8.2.1
+      addons:
+        apt:
+          sources:
+            - hvr-ghc
+          packages:
+            - cabal-install-2.0
+            - ghc-8.2.1
+
+before_install:
+  - export PATH=/opt/ghc/$GHCVER/bin:/opt/cabal/$CABALVER/bin:$PATH
+
+install:
+  - cabal install --only-dependencies --enable-tests --ghc-options=-O0
+
+script:
+  - cabal configure --enable-tests
+  - cabal build
+  - cabal test
