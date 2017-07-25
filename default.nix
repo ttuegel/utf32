@@ -1,12 +1,12 @@
-{ mkDerivation, base, cpu, hedgehog, inline-c, mtl, parsec, stdenv
-, text, transformers, vector
+{ mkDerivation, base, cpu, hedgehog, inline-c, mtl, parsec
+, semigroups, stdenv, text, transformers, vector
 }:
 mkDerivation {
   pname = "utf32";
   version = "0.1.0";
   src = ./.;
   libraryHaskellDepends = [
-    base cpu mtl parsec transformers vector
+    base cpu mtl parsec semigroups transformers vector
   ];
   testHaskellDepends = [ base hedgehog inline-c text ];
   homepage = "https://github.com/ttuegel/utf32#readme";

@@ -30,6 +30,7 @@ library
     , cpu
     , mtl
     , parsec
+    , semigroups
     , transformers
     , vector
   exposed-modules:
