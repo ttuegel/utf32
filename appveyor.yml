@@ -4,6 +4,7 @@ install:
   - choco install -y ghc --version 8.0.1
   - refreshenv
 
+  - cabal update
   - cabal install alex happy
   - cabal install --only-dependencies --enable-tests
 
