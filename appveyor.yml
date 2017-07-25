@@ -1,7 +1,7 @@
 install:
   # Using '-y' and 'refreshenv' as a workaround to:
   # https://github.com/haskell/cabal/issues/3687
-  - choco install -y ghc --version 8.0.1
+  - choco install -y ghc --version 8.0.2
   - refreshenv
 
   - cabal update
