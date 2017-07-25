@@ -23,6 +23,11 @@ source-repository head
   type: git
   location: https://github.com/ttuegel/utf32
 
+flag external-c
+  description: True if inline-c generates external C source files.
+  manual: False
+  default: False
+
 library
   ghc-options: -Wall
   build-depends:
@@ -45,15 +50,20 @@ test-suite tests
   hs-source-dirs:
       tests/
   ghc-options: -Wall
-  c-sources:
-      tests/Test/UTF32.c
   build-depends:
       base
     , hedgehog >= 0.5
-    , inline-c
     , text
     , transformers
     , utf32
+  if flag(external-c)
+    c-sources:
+        tests/Test/UTF32.c
+    build-depends:
+        inline-c < 0.6
+  else
+    build-depends:
+        inline-c >= 0.6
   other-modules:
       Test.UTF32
   default-language: Haskell2010

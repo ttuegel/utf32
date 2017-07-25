@@ -15,6 +15,12 @@ description: |
 
 ghc-options: -Wall
 
+flags:
+  external-c:
+    manual: False
+    default: False
+    description: True if inline-c generates external C source files.
+
 library:
   exposed-modules:
     - UTF32
@@ -33,12 +39,19 @@ tests:
     main: tests.hs
     other-modules:
       - Test.UTF32
-    c-sources:
-      - tests/Test/UTF32.c
     dependencies:
       - base
       - hedgehog >= 0.5
-      - inline-c
       - text
       - transformers
       - utf32
+    when:
+      - condition: flag(external-c)
+        then:
+          dependencies:
+            - inline-c < 0.6
+          c-sources:
+            - tests/Test/UTF32.c
+        else:
+          dependencies:
+            - inline-c >= 0.6
