@@ -38,6 +38,7 @@ before_install:
   - export PATH=/opt/ghc/$GHCVER/bin:/opt/cabal/$CABALVER/bin:$PATH
 
 install:
+  - travis_retry cabal update
   - cabal install --only-dependencies --enable-tests --ghc-options=-O0
 
 script:
